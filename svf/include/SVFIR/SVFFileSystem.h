@@ -24,10 +24,12 @@
 #ifndef INCLUDE_SVFFILESYSTEM_H_
 #define INCLUDE_SVFFILESYSTEM_H_
 
+#include "SVFIR/Neo4jClient.h"
 #include "Graphs/GenericGraph.h"
 #include "Util/SVFUtil.h"
 #include "Util/cJSON.h"
 #include <type_traits>
+#include <Python.h>
 
 #define ABORT_MSG(reason)                                                      \
     do                                                                         \
@@ -386,6 +388,8 @@ private:
     CHGraphWriter chgWriter;
     IRGraphWriter irGraphWriter;
 
+    Neo4jClient* dbWriter;
+
     OrderedMap<size_t, std::string> numToStrMap;
 
 public:
@@ -558,7 +562,8 @@ private:
 
     template <typename NodeTy, typename EdgeTy>
     cJSON* genericGraphToJson(const GenericGraph<NodeTy, EdgeTy>* graph,
-                              const std::vector<const EdgeTy*>& edgePool)
+                              const std::vector<const EdgeTy*>& edgePool,
+                              const char* type)
     {
         cJSON* root = jsonCreateObject();
 
@@ -568,6 +573,17 @@ private:
             NodeTy* node = pair.second;
             cJSON* jsonNode = virtToJson(node);
             jsonAddItemToArray(allNode, jsonNode);
+
+            // Print node json
+            char* jsonString = cJSON_Print(jsonNode);
+            if (jsonString != nullptr) {
+                printf("%s\n", jsonString);
+                free(jsonString);
+            }
+
+            // Write node to database
+            DbNode dbNode = dbWriter->createNodeJson("0", type, jsonNode);
+            dbWriter->writeNode(dbNode);
         }
 
         cJSON* allEdge = jsonCreateArray();
@@ -575,6 +591,19 @@ private:
         {
             cJSON* edgeJson = virtToJson(edge);
             jsonAddItemToArray(allEdge, edgeJson);
+
+            // Print edge json
+            char* jsonString = cJSON_Print(edgeJson);
+            if (jsonString != nullptr) {
+                printf("%s\n", jsonString);
+                free(jsonString);
+            }
+            
+            // Write edge to database
+            DbNode srcNode = dbWriter->createNode("0", type, "id", PyLong_FromLong(edge->src->getId()), nullptr);
+            DbNode dstNode = dbWriter->createNode("0", type, "id", PyLong_FromLong(edge->dst->getId()), nullptr);
+            DbEdge dbEdge = dbWriter->createEdgeJson("0", ("edgeFlag_" + std::to_string(edge->edgeFlag)).c_str(), edgeJson);
+            dbWriter->writeEdge(srcNode, dstNode, dbEdge);
         }
 
         JSON_WRITE_FIELD(root, graph, nodeNum);

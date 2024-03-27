@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <Python.h>
 
 static const Option<bool> humanReadableOption(
     "human-readable", "Whether to output human-readable JSON", true);
@@ -994,6 +995,10 @@ SVFIRWriter::SVFIRWriter(const SVFIR* svfir)
       chgWriter(SVFUtil::dyn_cast<CHGraph>(svfir->chgraph)),
       irGraphWriter(svfir)
 {
+    const char* uri = "neo4j+s://4291d08d.databases.neo4j.io";
+    const char* username = "neo4j";
+    const char* password = "ghfQKOPyySepbGDVuGgWsJLhhHP2R-ukd3tbvT9QNu8";
+    dbWriter = new Neo4jClient(uri, username, password);
 }
 
 void SVFIRWriter::writeJsonToOstream(const SVFIR* svfir, std::ostream& os)
@@ -1084,8 +1089,8 @@ cJSON* SVFIRWriter::toJson(const IRGraph* graph)
 {
     ENSURE_NOT_VISITED(graph);
 
-    cJSON* root = genericGraphToJson(graph, irGraphWriter.edgePool.getPool());
-#define F(field) JSON_WRITE_FIELD(root, graph, field)
+    cJSON* root = genericGraphToJson(graph, irGraphWriter.edgePool.getPool(), "irgraph");
+#define F(field) JSON_WRITE_FIELD(root, graph, field) // Meta field
     F(KindToSVFStmtSetMap);
     F(KindToPTASVFStmtSetMap);
     F(fromFile);
@@ -1116,7 +1121,7 @@ cJSON* SVFIRWriter::toJson(const ICFG* icfg)
     }
 
 #define F(field) JSON_WRITE_FIELD(root, icfg, field)
-    cJSON* root = genericGraphToJson(icfg, icfgWriter.edgePool.getPool());
+    cJSON* root = genericGraphToJson(icfg, icfgWriter.edgePool.getPool(), "icfg");
     jsonAddItemToObject(root, FIELD_NAME_ITEM(allSvfLoop)); // Meta field
     F(totalICFGNode);
     F(FunToFunEntryNodeMap);
@@ -1151,8 +1156,8 @@ cJSON* SVFIRWriter::toJson(const CommonCHGraph* graph)
 
 cJSON* SVFIRWriter::toJson(const CHGraph* graph)
 {
-    cJSON* root = genericGraphToJson(graph, chgWriter.edgePool.getPool());
-#define F(field) JSON_WRITE_FIELD(root, graph, field)
+    cJSON* root = genericGraphToJson(graph, chgWriter.edgePool.getPool(), "chgraph");
+#define F(field) JSON_WRITE_FIELD(root, graph, field) // Meta field
     // TODO: Ensure svfMod is the same as the SVFIR's?
     F(classNum);
     F(vfID);
