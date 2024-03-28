@@ -2,7 +2,7 @@
 """
 Created on Mon Mar 11 12:41:50 2024
 
-@author: Android12138
+@author: Ruijun Feng
 """
 
 from neo4j import GraphDatabase
