@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "intelliSenseMode": "clang-x64",
+            "includePath": [
+                "${workspaceFolder}/llvm-16.0.0.obj/include/**",
+                "${workspaceFolder}/svf/include/**",
+                "${workspaceFolder}/svf-llvm/include/**",
+                "/usr/include/python3.8",
+            ],
+            "compilerPath": "${workspaceFolder}/llvm-16.0.0.obj/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ],
+    "version": 4
+}

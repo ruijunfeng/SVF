@@ -8,7 +8,7 @@ Debug+Asserts/
 autoconf/
 tests/result/
 doxygen/
-.*
+.github/
 !.config.in
 !.config.cmake.in
 !.gitignore
