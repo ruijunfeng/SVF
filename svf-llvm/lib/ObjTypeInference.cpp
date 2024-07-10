@@ -207,7 +207,7 @@ const Type *ObjTypeInference::fwInferObjType(const Value *var)
         }
         if (const auto *gepInst = SVFUtil::dyn_cast<GetElementPtrInst>(curValue))
             insertInferSite(gepInst);
-        for (const auto &it: curValue->users())
+        for (const auto it: curValue->users())
         {
             if (const auto *loadInst = SVFUtil::dyn_cast<LoadInst>(it))
             {
@@ -233,7 +233,7 @@ const Type *ObjTypeInference::fwInferObjType(const Value *var)
                 }
                 else
                 {
-                    for (const auto &nit: storeInst->getPointerOperand()->users())
+                    for (const auto nit: storeInst->getPointerOperand()->users())
                     {
                         /*
                          * propagate across store (value operand) and load
@@ -247,30 +247,57 @@ const Type *ObjTypeInference::fwInferObjType(const Value *var)
                     }
                     /*
                      * infer based on store (value operand) <- gep (result element)
-                      %call1 = call i8* @TYPE_MALLOC(i32 noundef 16, i32 noundef 2), !dbg !39
-                      %2 = bitcast i8* %call1 to %struct.MyStruct*, !dbg !41
-                      %3 = load %struct.MyStruct*, %struct.MyStruct** %p, align 8, !dbg !42
-                      %next = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %3, i32 0, i32 1, !dbg !43
-                      store %struct.MyStruct* %2, %struct.MyStruct** %next, align 8, !dbg !44
-                      %5 = load %struct.MyStruct*, %struct.MyStruct** %p, align 8, !dbg !48
-                      %next3 = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %5, i32 0, i32 1, !dbg !49
-                      %6 = load %struct.MyStruct*, %struct.MyStruct** %next3, align 8, !dbg !49
-                      infer site -> %f1 = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %6, i32 0, i32 0, !dbg !50
                       */
                     if (const auto *gepInst = SVFUtil::dyn_cast<GetElementPtrInst>(
                                                   storeInst->getPointerOperand()))
                     {
+                        /*
+                          %call1 = call i8* @TYPE_MALLOC(i32 noundef 16, i32 noundef 2), !dbg !39
+                          %2 = bitcast i8* %call1 to %struct.MyStruct*, !dbg !41
+                          %3 = load %struct.MyStruct*, %struct.MyStruct** %p, align 8, !dbg !42
+                          %next = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %3, i32 0, i32 1, !dbg !43
+                          store %struct.MyStruct* %2, %struct.MyStruct** %next, align 8, !dbg !44
+                          %5 = load %struct.MyStruct*, %struct.MyStruct** %p, align 8, !dbg !48
+                          %next3 = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %5, i32 0, i32 1, !dbg !49
+                          %6 = load %struct.MyStruct*, %struct.MyStruct** %next3, align 8, !dbg !49
+                          infer site -> %f1 = getelementptr inbounds %struct.MyStruct, %struct.MyStruct* %6, i32 0, i32 0, !dbg !50
+                         */
                         const Value *gepBase = gepInst->getPointerOperand();
-                        if (!SVFUtil::isa<LoadInst>(gepBase)) continue;
-                        const auto *load = SVFUtil::dyn_cast<LoadInst>(gepBase);
-                        for (const auto &loadUse: load->getPointerOperand()->users())
+                        if(const auto *load = SVFUtil::dyn_cast<LoadInst>(gepBase))
                         {
-                            if (loadUse == load || !SVFUtil::isa<LoadInst>(loadUse))
-                                continue;
-                            for (const auto &gepUse: loadUse->users())
+                            for (const auto loadUse: load->getPointerOperand()->users())
+                            {
+                                if (loadUse == load || !SVFUtil::isa<LoadInst>(loadUse))
+                                    continue;
+                                for (const auto gepUse: loadUse->users())
+                                {
+                                    if (!SVFUtil::isa<GetElementPtrInst>(gepUse)) continue;
+                                    for (const auto loadUse2: gepUse->users())
+                                    {
+                                        if (SVFUtil::isa<LoadInst>(loadUse2))
+                                        {
+                                            insertInferSitesOrPushWorklist(loadUse2);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (const auto *alloc = SVFUtil::dyn_cast<AllocaInst>(gepBase))
+                        {
+                            /*
+                              %2 = alloca %struct.ll, align 8
+                              store i32 0, ptr %1, align 4
+                              %3 = call noalias noundef nonnull ptr @_Znwm(i64 noundef 16) #2
+                              %4 = getelementptr inbounds %struct.ll, ptr %2, i32 0, i32 1
+                              store ptr %3, ptr %4, align 8
+                              %5 = getelementptr inbounds %struct.ll, ptr %2, i32 0, i32 1
+                              %6 = load ptr, ptr %5, align 8
+                              %7 = getelementptr inbounds %struct.ll, ptr %6, i32 0, i32 0
+                             */
+                            for (const auto gepUse: alloc->users())
                             {
                                 if (!SVFUtil::isa<GetElementPtrInst>(gepUse)) continue;
-                                for (const auto &loadUse2: gepUse->users())
+                                for (const auto loadUse2: gepUse->users())
                                 {
                                     if (SVFUtil::isa<LoadInst>(loadUse2))
                                     {
@@ -279,7 +306,6 @@ const Type *ObjTypeInference::fwInferObjType(const Value *var)
                                 }
                             }
                         }
-
                     }
                 }
 
@@ -318,7 +344,7 @@ const Type *ObjTypeInference::fwInferObjType(const Value *var)
                  %call = call i8* @malloc_wrapper()
                  ..infer based on %call..
                 */
-                for (const auto &callsite: retInst->getFunction()->users())
+                for (const auto callsite: retInst->getFunction()->users())
                 {
                     if (const auto *callBase = SVFUtil::dyn_cast<CallBase>(callsite))
                     {
@@ -473,7 +499,7 @@ Set<const Value *> &ObjTypeInference::bwfindAllocOfVar(const Value *var)
         }
         else if (const auto *loadInst = SVFUtil::dyn_cast<LoadInst>(curValue))
         {
-            for (const auto &use: loadInst->getPointerOperand()->users())
+            for (const auto use: loadInst->getPointerOperand()->users())
             {
                 if (const StoreInst *storeInst = SVFUtil::dyn_cast<StoreInst>(use))
                 {
@@ -486,7 +512,7 @@ Set<const Value *> &ObjTypeInference::bwfindAllocOfVar(const Value *var)
         }
         else if (const auto *argument = SVFUtil::dyn_cast<Argument>(curValue))
         {
-            for (const auto &use: argument->getParent()->users())
+            for (const auto use: argument->getParent()->users())
             {
                 if (const CallBase *callBase = SVFUtil::dyn_cast<CallBase>(use))
                 {

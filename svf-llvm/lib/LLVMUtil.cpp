@@ -217,7 +217,6 @@ bool LLVMUtil::isPtrInUncalledFunction (const Value*  value)
 bool LLVMUtil::isIntrinsicFun(const Function* func)
 {
     if (func && (func->getIntrinsicID() == llvm::Intrinsic::donothing ||
-                 func->getIntrinsicID() == llvm::Intrinsic::dbg_addr ||
                  func->getIntrinsicID() == llvm::Intrinsic::dbg_declare ||
                  func->getIntrinsicID() == llvm::Intrinsic::dbg_label ||
                  func->getIntrinsicID() == llvm::Intrinsic::dbg_value))
@@ -508,7 +507,20 @@ void LLVMUtil::removeFunAnnotations(Set<Function*>& removedFuncList)
     ArrayType* annotationsType = ArrayType::get(ca->getType()->getElementType(), newAnnotations.size());
     Constant* newCA = ConstantArray::get(annotationsType, newAnnotations);
 
-    glob->setInitializer(newCA);
+    glob->setName("llvm.global.annotations.old");
+    GlobalVariable *GV = new GlobalVariable(newCA->getType(), glob->isConstant(), glob->getLinkage(), newCA, "llvm.global.annotations");
+    GV->setSection(glob->getSection());
+
+#if (LLVM_VERSION_MAJOR < 17)
+    module->getGlobalList().push_back(GV);
+#elif (LLVM_VERSION_MAJOR >= 17)
+    module->insertGlobalVariable(GV);
+#else
+    assert(false && "llvm version not supported!");
+#endif
+
+    glob->replaceAllUsesWith(GV);
+    glob->eraseFromParent();
 }
 
 /// Get all called funcions in a parent function
@@ -687,7 +699,7 @@ const std::string LLVMUtil::getSourceLoc(const Value* val )
     {
         if (SVFUtil::isa<AllocaInst>(inst))
         {
-            for (llvm::DbgInfoIntrinsic *DII : FindDbgAddrUses(const_cast<Instruction*>(inst)))
+            for (llvm::DbgInfoIntrinsic *DII : FindDbgDeclareUses(const_cast<Instruction*>(inst)))
             {
                 if (llvm::DbgDeclareInst *DDI = SVFUtil::dyn_cast<llvm::DbgDeclareInst>(DII))
                 {
@@ -854,43 +866,6 @@ bool LLVMUtil::isConstantObjSym(const SVFValue* val)
     return isConstantObjSym(LLVMModuleSet::getLLVMModuleSet()->getLLVMValue(val));
 }
 
-
-void LLVMUtil::getSuccBBandCondValPairVec(const SwitchInst &switchInst, SuccBBAndCondValPairVec &vec)
-{
-    // get default successor basic block and default case value (nullptr)
-    vec.push_back({switchInst.getDefaultDest(), nullptr});
-
-    // get normal case value and it's successor basic block
-    for (const auto& cs : switchInst.cases())
-        vec.push_back({cs.getCaseSuccessor(), cs.getCaseValue()});
-}
-
-s64_t LLVMUtil::getCaseValue(const SwitchInst &switchInst, SuccBBAndCondValPair &succBB2CondVal)
-{
-    const BasicBlock* succBB = succBB2CondVal.first;
-    const ConstantInt* caseValue = succBB2CondVal.second;
-    s64_t val;
-    if (caseValue == nullptr || succBB == switchInst.getDefaultDest())
-    {
-        /// default case value is set to -1
-        val = -1;
-    }
-    else
-    {
-        /// get normal case value
-        if (caseValue->getBitWidth() <= 64)
-        {
-            val = caseValue->getSExtValue();
-        }
-        else
-        {
-            /// For larger number, we preserve case value just -1 now
-            /// see more: https://github.com/SVF-tools/SVF/pull/992
-            val = -1;
-        }
-    }
-    return val;
-}
 
 std::string LLVMUtil::dumpValue(const Value* val)
 {

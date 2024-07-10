@@ -26,7 +26,7 @@
  // Author: Yulei Sui,
  */
 
-#include "AE/Svfexe/SVFIR2ItvExeState.h"
+#include "AE/Svfexe/SVFIR2AbsState.h"
 #include "Graphs/SVFG.h"
 #include "SVF-LLVM/LLVMUtil.h"
 #include "SVF-LLVM/SVFIRBuilder.h"
@@ -77,32 +77,33 @@ std::string printPts(PointerAnalysis* pta, const SVFValue* svfval)
  */
 void traverseOnSVFStmt(const ICFGNode* node)
 {
-    SVFIR2ItvExeState* svfir2ExeState = new SVFIR2ItvExeState(SVFIR::getPAG());
+    AbstractState es;
+    SVFIR2AbsState* svfir2AbsState = new SVFIR2AbsState(SVFIR::getPAG());
     for (const SVFStmt* stmt: node->getSVFStmts())
     {
         if (const AddrStmt *addr = SVFUtil::dyn_cast<AddrStmt>(stmt))
         {
-            svfir2ExeState->translateAddr(addr);
+            svfir2AbsState->handleAddr(es, addr);
         }
         else if (const BinaryOPStmt *binary = SVFUtil::dyn_cast<BinaryOPStmt>(stmt))
         {
-            svfir2ExeState->translateBinary(binary);
+            svfir2AbsState->handleBinary(es, binary);
         }
         else if (const CmpStmt *cmp = SVFUtil::dyn_cast<CmpStmt>(stmt))
         {
-            svfir2ExeState->translateCmp(cmp);
+            svfir2AbsState->handleCmp(es, cmp);
         }
         else if (const LoadStmt *load = SVFUtil::dyn_cast<LoadStmt>(stmt))
         {
-            svfir2ExeState->translateLoad(load);
+            svfir2AbsState->handleLoad(es, load);
         }
         else if (const StoreStmt *store = SVFUtil::dyn_cast<StoreStmt>(stmt))
         {
-            svfir2ExeState->translateStore(store);
+            svfir2AbsState->handleStore(es, store);
         }
         else if (const CopyStmt *copy = SVFUtil::dyn_cast<CopyStmt>(stmt))
         {
-            svfir2ExeState->translateCopy(copy);
+            svfir2AbsState->handleCopy(es, copy);
         }
         else if (const GepStmt *gep = SVFUtil::dyn_cast<GepStmt>(stmt))
         {
@@ -111,24 +112,24 @@ void traverseOnSVFStmt(const ICFGNode* node)
                 gep->accumulateConstantByteOffset();
                 gep->accumulateConstantOffset();
             }
-            svfir2ExeState->translateGep(gep);
+            svfir2AbsState->handleGep(es, gep);
         }
         else if (const SelectStmt *select = SVFUtil::dyn_cast<SelectStmt>(stmt))
         {
-            svfir2ExeState->translateSelect(select);
+            svfir2AbsState->handleSelect(es, select);
         }
         else if (const PhiStmt *phi = SVFUtil::dyn_cast<PhiStmt>(stmt))
         {
-            svfir2ExeState->translatePhi(phi);
+            svfir2AbsState->handlePhi(es, phi);
         }
         else if (const CallPE *callPE = SVFUtil::dyn_cast<CallPE>(stmt))
         {
             // To handle Call Edge
-            svfir2ExeState->translateCall(callPE);
+            svfir2AbsState->handleCall(es, callPE);
         }
         else if (const RetPE *retPE = SVFUtil::dyn_cast<RetPE>(stmt))
         {
-            svfir2ExeState->translateRet(retPE);
+            svfir2AbsState->handleRet(es, retPE);
         }
         else
             assert(false && "implement this part");

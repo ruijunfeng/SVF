@@ -189,7 +189,7 @@ bool SVFUtil::getMemoryUsageKB(u32_t* vmrss_kb, u32_t* vmsize_kb)
     }
     else
     {
-        fputs ("/proc/self/status file not exit\n",stderr);
+        SVFUtil::writeWrnMsg(" /proc/self/status file not exit!");
         return false;
     }
     fclose(procfile);

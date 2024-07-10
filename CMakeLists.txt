@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
 project(SVF
-  VERSION 3.0
+  VERSION 3.1
   DESCRIPTION "SVF is a static value-flow analysis tool for LLVM-based languages"
   HOMEPAGE_URL "https://github.com/SVF-tools/SVF"
   LANGUAGES C CXX
@@ -129,6 +129,7 @@ message(STATUS "Z3 STATUS:
   Z3 include directory:   ${Z3_INCLUDES}")
 
 # Add the Z3 include directory and link the Z3 library to all targets of SVF
+set(CMAKE_INSTALL_RPATH ${Z3_INCLUDES})
 link_libraries(${Z3_LIBRARIES})
 include_directories(SYSTEM ${Z3_INCLUDES})
 

@@ -395,23 +395,29 @@ public:
 
 private:
     /// Head of the cycle
-    const NodeT* _head;
+    const WTONode<GraphT>* _head;
 
     /// List of components
     WTOComponentRefList _components;
 
 public:
     /// Constructor
-    WTOCycle(const NodeT* head, WTOComponentRefList components)
+    WTOCycle(const WTONode<GraphT>* head, WTOComponentRefList components)
         : WTOComponent<GraphT>(WTOComponent<GraphT>::Cycle), _head(head),
           _components(std::move(components))
     {
     }
 
     /// Return the head of the cycle
-    const NodeT* head() const
+    const WTONode<GraphT>* head() const
     {
         return _head;
+    }
+
+    /// Get all wto components in WTO cycle
+    const WTOComponentRefList& getWTOComponents() const
+    {
+        return _components;
     }
 
     /// Begin iterator over the components
@@ -451,7 +457,7 @@ public:
         std::string str;
         std::stringstream rawstr(str);
         rawstr << "(";
-        rawstr << _head->getId() << ", ";
+        rawstr << _head->node()->getId() << ", ";
         for (auto it = begin(), et = end(); it != et;)
         {
             rawstr << (*it)->toString();
@@ -579,7 +585,12 @@ public:
         }
     }
 
-    /// Begin iterator over the components
+    /// Get all wto components in WTO
+    const WTOComponentRefList& getWTOComponents() const
+    {
+        return _components;
+    }
+
     /// Begin iterator over the components
     Iterator begin() const
     {
@@ -687,7 +698,7 @@ protected:
 
         void visit(const WTOCycleT& cycle) override
         {
-            const NodeT* head = cycle.head();
+            const NodeT* head = cycle.head()->node();
             WTOCycleDepthPtr previous_cycleDepth = _wtoCycleDepth;
             _nodeToWTOCycleDepth.insert(std::make_pair(head, _wtoCycleDepth));
             _wtoCycleDepth =
@@ -765,7 +776,7 @@ protected:
         return ptr;
     }
 
-    const WTOCycleT* newCycle(const NodeT* node,
+    const WTOCycleT* newCycle(const WTONodeT* node,
                               const WTOComponentRefList& partition)
     {
         const WTOCycleT* ptr = new WTOCycleT(node, std::move(partition));
@@ -784,7 +795,8 @@ protected:
                 visit(succ, partition);
             }
         });
-        const WTOCycleT* ptr = newCycle(node, partition);
+        const WTONodeT* head = newNode(node);
+        const WTOCycleT* ptr = newCycle(head, partition);
         headRefToCycle.emplace(node, ptr);
         return ptr;
     }

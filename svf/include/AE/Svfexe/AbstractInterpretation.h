@@ -1,4 +1,4 @@
-//===- AE.cpp -- Abstract Execution---------------------------------//
+//===- AbstractInterpretation.h -- Abstract Execution----------//
 //
 //                     SVF: Static Value-Flow Analysis
 //
@@ -28,18 +28,16 @@
 // Created by Jiawei Wang on 2024/1/10.
 //
 
-#include "Util/SVFBugReport.h"
 #include "AE/Core/ICFGWTO.h"
+#include "AE/Svfexe/SVFIR2AbsState.h"
+#include "Util/SVFBugReport.h"
 #include "WPA/Andersen.h"
-#include "AE/Svfexe/SVFIR2ItvExeState.h"
 
 namespace SVF
 {
-class AbstractExecution;
+class AbstractInterpretation;
 class AEStat;
 class AEAPI;
-class IntervalValue;
-class ExeState;
 
 template<typename T> class FILOWorkList;
 
@@ -54,7 +52,7 @@ class AEStat : public SVFStat
 {
 public:
     void countStateSize();
-    AEStat(AbstractExecution* ae) : _ae(ae)
+    AEStat(AbstractInterpretation* ae) : _ae(ae)
     {
         startTime = getClk(true);
     }
@@ -72,7 +70,7 @@ public:
     void reportBug();
 
 public:
-    AbstractExecution* _ae;
+    AbstractInterpretation* _ae;
     s32_t count{0};
     std::string memory_usage;
     std::string memUsage;
@@ -105,7 +103,8 @@ public:
     }
 };
 
-class AbstractExecution
+/// AbstractInterpretation is same as Abstract Execution
+class AbstractInterpretation
 {
     friend class AEStat;
     friend class AEAPI;
@@ -114,17 +113,17 @@ public:
     enum ExtAPIType { UNCLASSIFIED, MEMCPY, MEMSET, STRCPY, STRCAT };
     typedef SCCDetection<PTACallGraph*> CallGraphSCC;
     /// Constructor
-    AbstractExecution();
+    AbstractInterpretation();
 
     virtual void runOnModule(ICFG* icfg);
 
     /// Destructor
-    virtual ~AbstractExecution();
+    virtual ~AbstractInterpretation();
 
     /// Program entry
     void analyse();
 
-    static bool classof(const AbstractExecution* ae)
+    static bool classof(const AbstractInterpretation* ae)
     {
         return ae->getKind() == AEKind::AbstractExecution;
     }
@@ -144,10 +143,10 @@ protected:
     /**
      * Check if execution state exist by merging states of predecessor nodes
      *
-     * @param node The ICFGNode to analyse
+     * @param curNode The ICFGNode to analyse
      * @return if this node has preceding execution state
      */
-    bool hasInEdgesES(const ICFGNode* node);
+    bool propagateStateIfFeasible(const ICFGNode* curNode);
 
     /**
      * Check if execution state exist at the branch edge
@@ -155,14 +154,14 @@ protected:
      * @param intraEdge the edge from CmpStmt to the next node
      * @return if this edge is feasible
      */
-    bool hasBranchES(const IntraCFGEdge* intraEdge, IntervalExeState& es);
+    bool isBranchFeasible(const IntraCFGEdge* intraEdge, AbstractState& as);
 
     /**
-     * handle instructions in ICFGNode
+     * handle instructions in ICFGSingletonWTO
      *
-     * @param block basic block that has a series of instructions
+     * @param block basic block that has one instruction or a series of instructions
      */
-    void handleWTONode(const ICFGNode* node);
+    virtual void handleWTONode(const ICFGSingletonWTO *icfgSingletonWto);
 
     /**
      * handle one instruction in ICFGNode
@@ -183,7 +182,7 @@ protected:
      *
      * @param cycle WTOCycle which has weak topo order of basic blocks and nested cycles
      */
-    virtual void handleCycle(const ICFGWTOCycle* cycle);
+    virtual void handleCycle(const ICFGCycleWTO* cycle);
 
     /**
      * handle user defined function, ext function is not included.
@@ -206,12 +205,6 @@ protected:
      */
     virtual void SkipRecursiveCall(const CallICFGNode* callnode);
 
-    /**
-    * Check if this function is recursive function and skip it.
-    *
-    * @param func SVFFunction is a recursive function
-     */
-    virtual void SkipRecursiveFunc(const SVFFunction* func);
 
     /**
     * Check if this cmpStmt and succ are satisfiable to the execution state.
@@ -220,7 +213,8 @@ protected:
     * @param succ the value of cmpStmt (True or False)
     * @return if this ICFGNode has preceding execution state
     */
-    bool hasCmpBranchES(const CmpStmt* cmpStmt, s64_t succ, IntervalExeState& es);
+    bool isCmpBranchFeasible(const CmpStmt* cmpStmt, s64_t succ,
+                             AbstractState& as);
 
     /**
     * Check if this SwitchInst and succ are satisfiable to the execution state.
@@ -229,7 +223,8 @@ protected:
     * @param succ the case value of switch inst
     * @return if this ICFGNode has preceding execution state
     */
-    bool hasSwitchBranchES(const SVFVar* var, s64_t succ, IntervalExeState& es);
+    bool isSwitchBranchFeasible(const SVFVar* var, s64_t succ,
+                                AbstractState& as);
 
 
     /**
@@ -253,7 +248,7 @@ protected:
     * @param addr Address Stmt like malloc/calloc/ALLOCA/StackAlloc
     * @return the byte size e.g. int32_t a[10] -> return 40
     */
-    u32_t getAllocaInstByteSize(const AddrStmt *addr);
+    u32_t getAllocaInstByteSize(AbstractState& as, const AddrStmt *addr);
 
     /**
     * get byte size of alloca inst
@@ -262,7 +257,7 @@ protected:
     * @param rhs SVFValue of string
     * @return the string
     */
-    std::string strRead(const SVFValue* rhs);
+    std::string strRead(AbstractState& as,const SVFValue* rhs);
 
     /**
     * get length of string
@@ -271,7 +266,7 @@ protected:
     * @param strValue SVFValue of string
     * @return IntervalValue of string length
     */
-    IntervalValue getStrlen(const SVF::SVFValue *strValue);
+    IntervalValue getStrlen(AbstractState& as, const SVF::SVFValue *strValue);
 
     /**
     * get memory allocation size
@@ -282,7 +277,7 @@ protected:
     * @param value to be traced
     * @return IntervalValue of allocation size
     */
-    IntervalValue traceMemoryAllocationSize(const SVFValue *value);
+    IntervalValue traceMemoryAllocationSize(AbstractState& as, const SVFValue *value);
     /**
     * execute strcpy in abstract execution
     * e.g  arr = new char[10]
@@ -309,7 +304,7 @@ protected:
     * we can set arr[3]='d', arr[4]='e', arr[5]='\0'
     * @param call callnode of memcpy like api
     */
-    virtual void handleMemcpy(const SVFValue* dst, const SVFValue* src, IntervalValue len, u32_t start_idx);
+    virtual void handleMemcpy(AbstractState& as, const SVFValue* dst, const SVFValue* src, IntervalValue len, u32_t start_idx);
     /**
     * execute memset in abstract execution
     * e.g  arr = new char[10]
@@ -317,7 +312,7 @@ protected:
     * we can set arr[0]='c', arr[1]='c', arr[2]='\0'
     * @param call callnode of memset like api
     */
-    virtual void handleMemset(const SVFValue* dst, IntervalValue elem, IntervalValue len);
+    virtual void handleMemset(AbstractState& as, const SVFValue* dst, IntervalValue elem, IntervalValue len);
 
     /**
     * if this NodeID in SVFIR is a pointer, get the pointee type
@@ -326,14 +321,14 @@ protected:
     * we can set arr[0]='c', arr[1]='c', arr[2]='\0'
     * @param call callnode of memset like api
     */
-    const SVFType* getPointeeElement(NodeID id);
+    const SVFType* getPointeeElement(AbstractState& as, NodeID id);
 
     void collectCheckPoint();
     void checkPointAllSet();
     // helper functions for traceMemoryAllocationSize and canSafelyAccessMemory
     void AccessMemoryViaRetNode(const CallICFGNode *callnode, SVF::FILOWorkList<const SVFValue *>& worklist, Set<const SVFValue *>& visited);
     void AccessMemoryViaCopyStmt(const CopyStmt *copy, SVF::FILOWorkList<const SVFValue *>& worklist, Set<const SVFValue *>& visited);
-    void AccessMemoryViaLoadStmt(const LoadStmt *load, SVF::FILOWorkList<const SVFValue *>& worklist, Set<const SVFValue *>& visited);
+    void AccessMemoryViaLoadStmt(AbstractState& as, const LoadStmt *load, SVF::FILOWorkList<const SVFValue *>& worklist, Set<const SVFValue *>& visited);
     void AccessMemoryViaCallArgs(const SVF::SVFArgument *arg, SVF::FILOWorkList<const SVFValue *>& worklist, Set<const SVFValue *>& visited);
 
 
@@ -341,7 +336,7 @@ protected:
     SVFIR* _svfir;
     PTACallGraph* _callgraph;
     /// Execution State, used to store the Interval Value of every SVF variable
-    SVFIR2ItvExeState* _svfir2ExeState;
+    SVFIR2AbsState* _svfir2AbsState;
     AEAPI* _api{nullptr};
 
     ICFG* _icfg;
@@ -367,25 +362,33 @@ private:
     virtual bool isIndirectCall(const CallICFGNode* callNode);
     virtual void indirectCallFunPass(const CallICFGNode* callNode);
 
-    // helper functions in hasInEdgesES
-    bool isFunEntry(const ICFGNode* node);
-    bool isGlobalEntry(const ICFGNode* node);
-
+protected:
     // helper functions in handleCycle
-    bool widenFixpointPass(const ICFGNode* cycle_head,
-                           IntervalExeState& pre_es);
-    bool narrowFixpointPass(const ICFGNode* cycle_head,
-                            IntervalExeState& pre_es);
+    bool isFixPointAfterWidening(const ICFGNode* cycle_head,
+                                 AbstractState& pre_as);
+    bool isFixPointAfterNarrowing(const SVF::ICFGNode* cycle_head,
+                                  SVF::AbstractState& pre_as);
+
+    AbstractState& getAbsState(const ICFGNode* node)
+    {
+        const ICFGNode* repNode = _icfg->getRepNode(node);
+        if (_postAbsTrace.count(repNode) == 0)
+        {
+            assert(0 && "No preAbsTrace for this node");
+        }
+        else
+        {
+            return _postAbsTrace[repNode];
+        }
+    }
 
 protected:
     // there data should be shared with subclasses
     Map<std::string, std::function<void(const CallSite &)>> _func_map;
     Set<const CallICFGNode*> _checkpoints;
     Set<std::string> _checkpoint_names;
-
-private:
-    Map<const ICFGNode*, IntervalExeState> _preES;
-    Map<const ICFGNode*, IntervalExeState> _postES;
+    Map<const ICFGNode*, AbstractState> _preAbsTrace;
+    Map<const ICFGNode*, AbstractState> _postAbsTrace;
     std::string _moduleName;
 };
 }
