@@ -1,0 +1,8 @@
+# Example for Using WPA in SVF
+
+## Steps to Run WPA
+- `cd .svf-usage-example`
+- `clang -emit-llvm -c main.cpp -o main.bc` // clang is at llvm-16.0.0.obj/bin/clang
+- `clang -emit-llvm -S main.cpp -o main.ll`
+- `/home/SVF-tools/SVF/Debug-build/bin/wpa -ander main.ll -dump-json result.json`
+- `/home/SVF-tools/SVF/Debug-build/bin/wpa -ander -read-json result.json`

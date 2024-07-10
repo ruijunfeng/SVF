@@ -1,0 +1,16 @@
+# JSON to Database
+The process of converting JSON to a database is implemented in the following files:
+- `svf/lib/SVFIR/Neo4jClient.cpp`
+- `svf/lib/SVFIR/Neo4jClient.py`
+- `svf/lib/SVFIR/SVFFileSystem.cpp`
+
+## Neo4j C++ Demo
+The `neo4j-cpp-demo` folder includes minimal examples demonstrating how to run Neo4j in Python and call the functions in Python using C++. Note that `demo.cpp` is not complete, it was aimed to build a minimal example from SVF.
+
+## Testing and Debugging
+
+### Database Writing
+Since the database writing process is implemented in `SVFFileSystem.cpp`, use `dump-json` to test the written code.
+
+### Debugging
+To debug whether the data has been written into the database, use the commands provided in `svf-usage-demo`.

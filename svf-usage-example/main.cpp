@@ -36,11 +36,3 @@ int main() {
 
     return 0;
 }
-
-/*
-cd .example
-clang -emit-llvm -c main.cpp -o main.bc
-clang -emit-llvm -S main.cpp -o main.ll
-/home/SVF-tools/SVF/Debug-build/bin/wpa -ander main.ll -dump-json result.json
-/home/SVF-tools/SVF/Debug-build/bin/wpa -ander -read-json result.json
-*/
